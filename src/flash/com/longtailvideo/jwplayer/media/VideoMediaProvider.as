@@ -9,8 +9,11 @@ import com.longtailvideo.jwplayer.utils.NetClient;
 import com.longtailvideo.jwplayer.utils.Strings;
 import com.longtailvideo.jwplayer.utils.Utils;
 
+import flash.display.Loader;
+
 import flash.events.AsyncErrorEvent;
 import flash.events.ErrorEvent;
+import flash.events.Event;
 import flash.events.IOErrorEvent;
 import flash.events.NetStatusEvent;
 import flash.media.Video;
@@ -18,6 +21,21 @@ import flash.net.NetConnection;
 import flash.net.NetStream;
 import flash.utils.clearInterval;
 import flash.utils.setInterval;
+import flash.events.SecurityErrorEvent;
+import flash.display.Loader;
+import flash.display.Sprite;
+import flash.events.Event;
+import flash.events.IOErrorEvent;
+import flash.events.NetStatusEvent;
+import flash.events.SecurityErrorEvent;
+import flash.media.Video;
+import flash.net.NetConnection;
+import flash.net.NetStream;
+import flash.net.URLRequest;
+import flash.system.ApplicationDomain;
+import flash.system.LoaderContext;
+import flash.system.Security;
+
 
 /**
  * Wrapper for playback of progressively downloaded MP4, FLV and AAC.
@@ -48,6 +66,17 @@ public class VideoMediaProvider extends MediaProvider {
     /** Netstream stopped state **/
     private var _complete:Boolean;
 
+    /**用户申请accessKey,该accessKey可能失效*/
+    private static const accessKey:String = "a65c86c0f18e6edbdb445d834545c562f880e675";
+    /**用户申请tokenId,该tokenId可能失效*/
+    private static const tokenId:String = "951b4641eba2ec6fc1eeadd5afa599dfb1dcd421";
+
+    /**sdk下载地址*/
+//		private static const sdkUrl:String = "sdk/Yunfan.swf";
+    private static const sdkUrl:String = "http://sdk.yfp2p.net/config/hkteach/Yunfan.swf";
+    private var _loader:Loader;
+    private var _yunfanClass:Class;
+
     /** Set the current quality level. **/
     override public function set currentQuality(quality:Number):void {
         if (!_item) return;
@@ -68,13 +97,34 @@ public class VideoMediaProvider extends MediaProvider {
             return sources2Levels(_item.levels);
         } else return [];
     }
+    /**
+     * sdk加载完成
+     * @param evt
+     */
+    private function completeHandler(evt:Event):void
+    {
+        _yunfanClass = _loader.contentLoaderInfo.applicationDomain.getDefinition("YunfanStream") as Class;
+
+    }
 
     public override function initializeMediaProvider(cfg:PlayerConfig):void {
         super.initializeMediaProvider(cfg);
 
         var _connection:NetConnection = new NetConnection();
         _connection.connect(null);
-        _stream = new NetStream(_connection);
+        /**sdk**/
+        _loader = new Loader();
+        _loader.contentLoaderInfo.addEventListener(Event.COMPLETE,completeHandler);
+        _loader.contentLoaderInfo.addEventListener(IOErrorEvent.IO_ERROR,errorHandler);
+        _loader.contentLoaderInfo.addEventListener(SecurityErrorEvent.SECURITY_ERROR ,errorHandler);
+        var req:URLRequest = new URLRequest(sdkUrl);
+
+        var context:LoaderContext = new LoaderContext(true,ApplicationDomain.currentDomain);
+        context.securityDomain = flash.system.SecurityDomain.currentDomain;//加载远程域的yunfan。swf要带上这句话
+        _loader.load(req);
+        /**sdk**/
+
+        _stream = new _yunfanClass(_connection);
         _stream.addEventListener(NetStatusEvent.NET_STATUS, statusHandler);
         _stream.addEventListener(IOErrorEvent.IO_ERROR, errorHandler);
         _stream.addEventListener(AsyncErrorEvent.ASYNC_ERROR, errorHandler);
