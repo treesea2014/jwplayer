@@ -43,6 +43,8 @@ import flash.system.Security;
 public class VideoMediaProvider extends MediaProvider {
     /** Constructor; sets up the connection and display. **/
     public function VideoMediaProvider() {
+        Security.allowDomain("*");
+        Security.allowInsecureDomain("*");
         super('video');
     }
     /** Whether the video is fully buffered. **/
@@ -73,9 +75,9 @@ public class VideoMediaProvider extends MediaProvider {
 
     /**sdk下载地址*/
 //		private static const sdkUrl:String = "sdk/Yunfan.swf";
-    private static const sdkUrl:String = "http://sdk.yfp2p.net/config/hkteach/Yunfan.swf";
+//    private static const sdkUrl:String = "http://sdk.yfp2p.net/config/hkteach/Yunfan.swf";
     private var _loader:Loader;
-    private var _yunfanClass:Class;
+    private var YunfanStream:Class;
 
     /** Set the current quality level. **/
     override public function set currentQuality(quality:Number):void {
@@ -101,40 +103,77 @@ public class VideoMediaProvider extends MediaProvider {
      * sdk加载完成
      * @param evt
      */
-    private function completeHandler(evt:Event):void
-    {
-        _yunfanClass = _loader.contentLoaderInfo.applicationDomain.getDefinition("YunfanStream") as Class;
-
+//    private function completeHandler(evt:Event):void
+//    {
+//        _yunfanClass = _loader.contentLoaderInfo.applicationDomain.getDefinition("YunfanStream") as Class;
+//
+//    }
+    private function netStatusHandler(e:NetStatusEvent):void{
+        switch (e.info.code) {
+            case "NetConnection.Connect.Success"://NetConnection连接成功
+                break;
+            case "NetStream.Play.StreamNotFound"://找不到视频流，请检查视频url或者网络
+                break;
+            case "NetStream.Play.Start"://视频启动播放。一次play()方法至多触发一次该事件。
+                break;
+            case "NetStream.Play.Stop"://视频停止播放。手动close不会触发该事件
+                break;
+            case "NetStream.Unpause.Notify"://暂停后恢复播放状态
+                break;
+            case "NetStream.Buffer.Full"://缓冲区已满，流开始播放
+                break;
+            case "NetStream.Pause.Notify"://暂停
+                break;
+            case "NetStream.Buffer.Empty":// 发起缓冲，因为接收数据的速度不足以填充缓冲区
+                break;
+            case "NetStream.Token.Success":// sdk鉴权通过，无需任何操作
+                break;
+            case "NetStream.Token.Failed":// sdk鉴权失败，请检查AccessKey和Token参数是否合法
+                break;
+        }
     }
-
     public override function initializeMediaProvider(cfg:PlayerConfig):void {
         super.initializeMediaProvider(cfg);
 
         var _connection:NetConnection = new NetConnection();
         _connection.connect(null);
         /**sdk**/
-        _loader = new Loader();
-        _loader.contentLoaderInfo.addEventListener(Event.COMPLETE,completeHandler);
-        _loader.contentLoaderInfo.addEventListener(IOErrorEvent.IO_ERROR,errorHandler);
-        _loader.contentLoaderInfo.addEventListener(SecurityErrorEvent.SECURITY_ERROR ,errorHandler);
-        var req:URLRequest = new URLRequest(sdkUrl);
-
-        var context:LoaderContext = new LoaderContext(true,ApplicationDomain.currentDomain);
-        context.securityDomain = flash.system.SecurityDomain.currentDomain;//加载远程域的yunfan。swf要带上这句话
-        _loader.load(req);
+//        _loader = new Loader();
+//        _loader.contentLoaderInfo.addEventListener(Event.COMPLETE,completeHandler);
+//        _loader.contentLoaderInfo.addEventListener(IOErrorEvent.IO_ERROR,errorHandler);
+//        _loader.contentLoaderInfo.addEventListener(SecurityErrorEvent.SECURITY_ERROR ,errorHandler);
+//        var req:URLRequest = new URLRequest(sdkUrl);
+//
+//        var context:LoaderContext = new LoaderContext(true,ApplicationDomain.currentDomain);
+//        context.securityDomain = flash.system.SecurityDomain.currentDomain;//加载远程域的yunfan。swf要带上这句话
+//        _loader.load(req);
         /**sdk**/
+        /**sdk2**/
+        _loader = new Loader();
+        var YUNFAN_SDK:String = "http://sdk.yfp2p.net/config/hkteach/Yunfan.swf";
+        var req:URLRequest = new URLRequest(YUNFAN_SDK);
+        var context:LoaderContext = new LoaderContext(true,ApplicationDomain.currentDomain);
+        context.securityDomain = flash.system.SecurityDomain.currentDomain;
+        _loader.load(req);
+        _loader.contentLoaderInfo.addEventListener(Event.COMPLETE,function():void{
+            YunfanStream = _loader.contentLoaderInfo.applicationDomain.getDefinition("YunfanStream") as Class;
+            _loader.contentLoaderInfo.removeEventListener(Event.COMPLETE,arguments.callee);
+            _stream = new YunfanStream(_connection);
+            _stream.addEventListener(NetStatusEvent.NET_STATUS, netStatusHandler);
+            _stream.addEventListener(IOErrorEvent.IO_ERROR, errorHandler);
+            _stream.addEventListener(AsyncErrorEvent.ASYNC_ERROR, errorHandler);
+            _stream.bufferTime = 1;
+            _stream.client = new NetClient(this);
+//            _stream.token(accessKey,tokenId)
+            _stream.soundTransform = cfg.soundTransform;
 
-        _stream = new _yunfanClass(_connection);
-        _stream.addEventListener(NetStatusEvent.NET_STATUS, statusHandler);
-        _stream.addEventListener(IOErrorEvent.IO_ERROR, errorHandler);
-        _stream.addEventListener(AsyncErrorEvent.ASYNC_ERROR, errorHandler);
-        _stream.bufferTime = 1;
-        _stream.client = new NetClient(this);
-        _stream.soundTransform = cfg.soundTransform;
+        });
         // Set startparam when available
         if (_config.startparam) {
             _startparam = _config.startparam;
         }
+        /**sdk2**/
+
     }
 
     override public function init(itm:PlaylistItem):void {
@@ -349,7 +388,6 @@ public class VideoMediaProvider extends MediaProvider {
         }
 
         _video.attachNetStream(_stream);
-
         // Set initial quality and set levels
         _currentQuality = 0;
 
@@ -412,7 +450,7 @@ public class VideoMediaProvider extends MediaProvider {
         } else {
             _stream.play(url + '?' + _startparam + '=' + prm);
         }
-        
+
         sendBufferEvent(0);
 
         clearInterval(_interval);
