@@ -43,8 +43,6 @@ import flash.system.Security;
 public class VideoMediaProvider extends MediaProvider {
     /** Constructor; sets up the connection and display. **/
     public function VideoMediaProvider() {
-        Security.allowDomain("*");
-        Security.allowInsecureDomain("*");
         super('video');
     }
     /** Whether the video is fully buffered. **/
@@ -54,7 +52,7 @@ public class VideoMediaProvider extends MediaProvider {
     /** Offset time/byte for http seek. **/
     private var _offset:Object;
     /** NetStream instance that handles the stream IO. **/
-    private var _stream:NetStream;
+    private var _stream:*;
     /** Start parameter for HTTP pseudostreaming. **/
     private var _startparam:String;
     /** Starttime for pre-keyframe seek. **/
